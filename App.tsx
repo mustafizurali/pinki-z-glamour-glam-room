@@ -1,3 +1,4 @@
+
 import React, { useState, FormEvent, useEffect, useRef, useCallback } from 'react';
 import { serviceCategories, priceList, galleryImages, specialOffers, testimonials, faqs } from './constants';
 import { ServiceIconProps } from './types';
@@ -183,102 +184,13 @@ const PriceCategory: React.FC<{ category: typeof priceList[0] }> = ({ category }
   </div>
 );
 
-const Calendar: React.FC<{ value: string; onChange: (date: string) => void; }> = ({ value, onChange }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-
-    const selectedDate = value ? new Date(value + 'T00:00:00') : null;
-
-    const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-    const firstDayOfMonth = (year: number, month: number) => new Date(year, month, 1).getDay();
-
-    const renderDays = () => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const totalDays = daysInMonth(year, month);
-        const startDay = firstDayOfMonth(year, month);
-        const days = [];
-
-        for (let i = 0; i < startDay; i++) {
-            days.push(<div key={`empty-${i}`} />);
-        }
-        
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        for (let day = 1; day <= totalDays; day++) {
-            const date = new Date(year, month, day);
-            const dateString = date.toISOString().split('T')[0];
-            const isSelected = selectedDate && date.getTime() === selectedDate.getTime();
-            const isToday = date.getTime() === today.getTime();
-            const isPast = date < today;
-
-            const classNames = [
-                'w-10 h-10 flex items-center justify-center rounded-full transition-colors text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500',
-                isPast ? 'text-gray-500 cursor-not-allowed' : 'hover:bg-pink-500/30 cursor-pointer',
-                isSelected ? 'bg-pink-500 font-bold !text-white' : '',
-                !isSelected && isToday ? 'border border-pink-400' : ''
-            ].join(' ');
-
-            days.push(
-                <button
-                    key={day}
-                    type="button"
-                    onClick={() => !isPast && onChange(dateString)}
-                    className={classNames}
-                    disabled={isPast}
-                    aria-label={isPast ? `${day}, past date, unavailable` : `Select date ${day}`}
-                >
-                    {day}
-                </button>
-            );
-        }
-        return days;
-    };
-    
-    const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-
-    return (
-        <div className="absolute top-full mt-2 left-0 w-80 bg-gray-800 border border-white/20 rounded-lg shadow-2xl p-4 z-20">
-            <div className="flex justify-between items-center mb-4">
-                <button type="button" onClick={prevMonth} aria-label="Previous month" className="p-2 rounded-full hover:bg-white/10 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                </button>
-                <div className="font-bold text-lg text-pink-300" aria-live="polite">
-                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                </div>
-                <button type="button" onClick={nextMonth} aria-label="Next month" className="p-2 rounded-full hover:bg-white/10 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-400 mb-2">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => <div key={d}><span className="sr-only">{d}</span><span aria-hidden="true">{d.charAt(0)}</span></div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-                {renderDays()}
-            </div>
-        </div>
-    );
-};
-
 const BookingForm: React.FC<{ bookings: Booking[], onBookingSuccess: () => void }> = ({ bookings, onBookingSuccess }) => {
   const [formData, setFormData] = useState({ name: '', phone: '', service: '', date: '', time: '' });
-  const [submitted, setSubmitted] = useState(false);
+  const [bookingStep, setBookingStep] = useState<'form' | 'summary' | 'success'>('form');
+  const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
   const [error, setError] = useState('');
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const datePickerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
-  
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-        if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
-            setIsCalendarOpen(false);
-        }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     if (!formData.date) {
@@ -317,18 +229,27 @@ const BookingForm: React.FC<{ bookings: Booking[], onBookingSuccess: () => void 
     getAvailableTimes();
   }, [formData.date, bookings]);
 
+  useEffect(() => {
+    if (bookingStep === 'success') {
+        const timer = setTimeout(() => {
+            setBookingStep('form');
+            setConfirmedBooking(null);
+            setFormData({ name: '', phone: '', service: '', date: '', time: '' });
+        }, 8000); // Reset after 8 seconds
+        return () => clearTimeout(timer);
+    }
+  }, [bookingStep]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-     if (name === 'date') {
-        setFormData(prev => ({...prev, time: ''}));
-    }
+    setFormData(prev => {
+        const newState = { ...prev, [name]: value };
+        if (name === 'date') {
+            newState.time = '';
+        }
+        return newState;
+    });
   };
-
-  const handleDateChange = (date: string) => {
-    setFormData(prev => ({...prev, date, time: ''}));
-    setIsCalendarOpen(false);
-  }
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -348,12 +269,9 @@ const BookingForm: React.FC<{ bookings: Booking[], onBookingSuccess: () => void 
             const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
             localStorage.setItem('bookings', JSON.stringify([...existingBookings, newBooking]));
             
-            setSubmitted(true);
+            setConfirmedBooking(newBooking);
+            setBookingStep('summary');
             onBookingSuccess();
-            setTimeout(() => {
-                setSubmitted(false);
-                setFormData({ name: '', phone: '', service: '', date: '', time: '' });
-            }, 8000);
         } catch (e) {
             setError('An unexpected error occurred. Please try again.');
         } finally {
@@ -361,9 +279,32 @@ const BookingForm: React.FC<{ bookings: Booking[], onBookingSuccess: () => void 
         }
     }, 1500);
   };
+  
+  if (bookingStep === 'summary' && confirmedBooking) {
+    return (
+      <div className="text-center bg-blue-500/10 border border-blue-500 p-8 rounded-lg animate-fadeIn" role="status">
+        <h3 className="text-3xl font-fancy text-white mb-4">Confirm Your Details</h3>
+        <p className="text-blue-200 mb-6">Please review your appointment details below before confirming.</p>
+        <div className="bg-white/5 p-6 rounded-lg text-left space-y-3 mb-8 border border-white/10">
+            <p className="text-lg flex items-center"><strong className="font-semibold text-pink-300 w-28 inline-block flex-shrink-0">Name:</strong> <span className="text-white">{confirmedBooking.name}</span></p>
+            <p className="text-lg flex items-center"><strong className="font-semibold text-pink-300 w-28 inline-block flex-shrink-0">Service:</strong> <span className="text-white">{confirmedBooking.service}</span></p>
+            <p className="text-lg flex items-center"><strong className="font-semibold text-pink-300 w-28 inline-block flex-shrink-0">Date:</strong> <span className="text-white">{new Date(confirmedBooking.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
+            <p className="text-lg flex items-center"><strong className="font-semibold text-pink-300 w-28 inline-block flex-shrink-0">Time:</strong> <span className="text-white">{confirmedBooking.time}</span></p>
+        </div>
+        <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button onClick={() => setBookingStep('form')} className="bg-white/20 text-white font-bold py-3 px-6 rounded-full hover:bg-white/30 transition-colors duration-300 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-white focus-visible:ring-offset-gray-800">
+                Edit Details
+            </button>
+            <button onClick={() => setBookingStep('success')} className="bg-pink-600 text-white font-bold py-3 px-6 rounded-full hover:bg-pink-700 transition-colors duration-300 shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pink-500 focus-visible:ring-offset-gray-800">
+                Confirm & Proceed
+            </button>
+        </div>
+      </div>
+    );
+  }
 
-  if (submitted) {
-    const whatsappMessage = `Hello Pinki'z Glam Room! I've just booked an appointment for ${formData.service} on ${new Date(formData.date + 'T00:00:00').toLocaleDateString()} at ${formData.time}. My name is ${formData.name}. Please confirm my booking.`;
+  if (bookingStep === 'success' && confirmedBooking) {
+    const whatsappMessage = `Hello Pinki'z Glam Room! I've just booked an appointment for ${confirmedBooking.service} on ${new Date(confirmedBooking.date + 'T00:00:00').toLocaleDateString()} at ${confirmedBooking.time}. My name is ${confirmedBooking.name}. Please confirm my booking.`;
     const whatsappUrl = `https://wa.me/918389958668?text=${encodeURIComponent(whatsappMessage)}`;
 
     return (
@@ -421,12 +362,19 @@ const BookingForm: React.FC<{ bookings: Booking[], onBookingSuccess: () => void 
             </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="relative" ref={datePickerRef}>
-            <label htmlFor="date-button" className="sr-only">Select a Date</label>
-            <button id="date-button" type="button" onClick={() => setIsCalendarOpen(!isCalendarOpen)} className={`w-full text-left bg-white/10 border border-white/20 rounded-md p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 transition-colors ${formData.date ? 'text-white' : 'text-gray-400'}`} aria-haspopup="dialog" aria-expanded={isCalendarOpen}>
-              {formData.date ? new Date(formData.date + 'T00:00:00').toLocaleDateString() : 'Select a Date'}
-            </button>
-            {isCalendarOpen && <Calendar value={formData.date} onChange={handleDateChange} />}
+          <div>
+            <label htmlFor="date" className="sr-only">Select a Date</label>
+            <input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                min={new Date().toISOString().split("T")[0]}
+                className={`w-full bg-white/10 border border-white/20 rounded-md p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 transition-colors ${formData.date ? 'text-white' : 'text-gray-400'}`}
+                style={{ colorScheme: 'dark' }}
+                aria-label="Select a Date"
+            />
           </div>
           <div className="relative">
             <label htmlFor="time" className="sr-only">Select a Time</label>
@@ -1110,7 +1058,7 @@ const App: React.FC = () => {
       <footer className="bg-gray-900 border-t border-white/10 py-10">
         <div className="container mx-auto px-6 text-center text-gray-400">
             <div className="flex flex-col md:flex-row justify-center items-center gap-8 mb-6">
-                <a href="tel:+918389958668" target="_blank" rel="noopener noreferrer" aria-label="Call us at 8389958668" className="flex items-center gap-2 hover:text-pink-300 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 p-1">
+                <a href="tel:+918389958668" aria-label="Call us at 8389958668" className="flex items-center gap-2 hover:text-pink-300 transition-colors rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 p-1">
                     <PhoneIcon className="w-5 h-5" />
                     <span>8389958668</span>
                 </a>
